@@ -18,12 +18,13 @@ You need an xAI API key from [console.x.ai](https://console.x.ai).
 
 ## Configure in Claude Code
 
-Add to your Claude Code MCP settings (`~/.claude/settings.json`):
+Add to your project's `.mcp.json`:
 
 ```json
 {
   "mcpServers": {
     "grok": {
+      "type": "stdio",
       "command": "npx",
       "args": ["grok-mcp"],
       "env": {
@@ -47,12 +48,12 @@ Single tool with options for different use cases.
 | `model` | string | no | Model to use (default: `grok-4.20-reasoning`) |
 | `web_search` | boolean | no | Enable real-time web search |
 | `x_search` | boolean | no | Enable X/Twitter search |
-| `reasoning_effort` | "low" \| "high" | no | Reasoning effort for reasoning models |
 
 ### Available Models
 
 - `grok-4.20-reasoning` — flagship reasoning (default)
 - `grok-4.20-non-reasoning` — fast, no reasoning
+- `grok-4.20-multi-agent` — multi-agent mode, great for architecture and planning
 - `grok-4.1-fast-reasoning` — cheaper reasoning
 - `grok-4.1-fast-non-reasoning` — cheapest, fast
 
@@ -63,10 +64,10 @@ Single tool with options for different use cases.
 prompt: "What are the trade-offs between microservices and monoliths?"
 ```
 
-**Plan with deep thinking:**
+**Deep architecture planning (multi-agent):**
 ```
-prompt: "Design a caching strategy for a high-traffic API"
-reasoning_effort: "high"
+prompt: "Design a system architecture for a real-time collaborative editor"
+model: "grok-4.20-multi-agent"
 ```
 
 **Search the web:**
