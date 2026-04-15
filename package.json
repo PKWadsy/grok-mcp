@@ -1,0 +1,34 @@
+{
+  "name": "grok-mcp",
+  "version": "1.0.0",
+  "description": "MCP server that wraps the xAI Grok API — delegate thinking, planning, and search to Grok",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "grok-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "grok",
+    "xai",
+    "ai",
+    "model-context-protocol"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "typescript": "^5.8.3"
+  }
+}
