@@ -165,6 +165,7 @@ interface GrokTool {
 }
 
 interface ResponsesApiResponse {
+  id?: string;
   output: Array<{
     type: string;
     role?: string;
@@ -175,17 +176,32 @@ interface ResponsesApiResponse {
   }>;
 }
 
+interface GrokResult {
+  text: string;
+  responseId?: string;
+}
+
 async function callGrok(options: {
   messages: GrokMessage[];
   model?: string;
   tools?: GrokTool[];
-}): Promise<string> {
+  previousResponseId?: string;
+}): Promise<GrokResult> {
   const model = options.model ?? "grok-4.20-multi-agent";
 
   const body: Record<string, unknown> = {
     model,
-    input: options.messages,
+    input: options.messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+    })),
+    store: true,
+    include: ["reasoning.encrypted_content"],
   };
+
+  if (options.previousResponseId) {
+    body.previous_response_id = options.previousResponseId;
+  }
 
   if (options.tools && options.tools.length > 0) {
     body.tools = options.tools;
@@ -211,7 +227,7 @@ async function callGrok(options: {
     if (item.type === "message" && item.content) {
       for (const block of item.content) {
         if (block.type === "output_text" && block.text) {
-          return block.text;
+          return { text: block.text, responseId: data.id ?? undefined };
         }
       }
     }
@@ -222,9 +238,13 @@ async function callGrok(options: {
 
 server.tool(
   "ask_grok",
-  `Ask Grok a question. Grok is great for thinking, planning, architecture, and real-time search via web and X/Twitter. Use web_search for current information from the internet. Use x_search to find and analyze posts on X/Twitter. IMPORTANT: Grok has no context about your conversation or codebase. Always include all relevant context directly in the prompt — file contents, error messages, architecture details, constraints, and goals. The more context you provide, the better Grok's response will be. Do not assume Grok knows anything about the current project. Use the files parameter to automatically include file contents with line numbers — this is preferred over pasting code into the prompt. File paths are resolved relative to the server working directory: ${process.cwd()}`,
+  `Ask Grok a question. Grok is great for thinking, planning, architecture, and real-time search via web and X/Twitter. Use web_search for current information from the internet. Use x_search to find and analyze posts on X/Twitter. IMPORTANT: Grok has no context about your conversation or codebase. Always include all relevant context directly in the prompt — file contents, error messages, architecture details, constraints, and goals. The more context you provide, the better Grok's response will be. Do not assume Grok knows anything about the current project. Use the files parameter to automatically include file contents with line numbers — this is preferred over pasting code into the prompt. File paths are resolved relative to the server working directory: ${process.cwd()}. Responses include a response_id — pass it back as previous_response_id to continue a conversation without resending context.`,
   {
     prompt: z.string().describe("The question or task for Grok. Include all relevant context — constraints, background, and goals — since Grok has no access to your conversation or files. Use the files parameter to attach source code rather than pasting it inline"),
+    previous_response_id: z
+      .string()
+      .optional()
+      .describe("Response ID from a previous ask_grok call. Continues the conversation — Grok remembers all prior context so you don't need to resend files or repeat background. Not supported by multi-agent model (beta limitation)"),
     files: z
       .array(z.string())
       .optional()
@@ -257,29 +277,34 @@ server.tool(
       .optional()
       .describe("Enable X/Twitter search to find and analyze posts"),
   },
-  async ({ prompt, files, max_files, max_file_size, system_prompt, model, web_search, x_search }) => {
+  async ({ prompt, previous_response_id, files, max_files, max_file_size, system_prompt, model, web_search, x_search }) => {
     const messages: GrokMessage[] = [];
 
-    if (system_prompt) {
-      messages.push({ role: "system", content: system_prompt });
-    }
-
-    let userContent = prompt;
-
-    if (files && files.length > 0) {
-      const result = resolveFiles(files, { maxFiles: max_files, maxFileSize: max_file_size });
-      if (!result.ok) {
-        return { isError: true, content: [{ type: "text" as const, text: result.error }] };
+    // On continuations, Grok already has prior context — only send the new prompt
+    if (previous_response_id) {
+      messages.push({ role: "user", content: prompt });
+    } else {
+      if (system_prompt) {
+        messages.push({ role: "system", content: system_prompt });
       }
-      const cwd = process.cwd();
-      const fileBlocks = [`Working directory: ${cwd}\n`];
-      for (const f of result.files) {
-        fileBlocks.push(`--- ${f.path}${f.range} ---\n${f.content}\n---`);
-      }
-      userContent = `${fileBlocks.join("\n\n")}\n\n${prompt}`;
-    }
 
-    messages.push({ role: "user", content: userContent });
+      let userContent = prompt;
+
+      if (files && files.length > 0) {
+        const result = resolveFiles(files, { maxFiles: max_files, maxFileSize: max_file_size });
+        if (!result.ok) {
+          return { isError: true, content: [{ type: "text" as const, text: result.error }] };
+        }
+        const cwd = process.cwd();
+        const fileBlocks = [`Working directory: ${cwd}\n`];
+        for (const f of result.files) {
+          fileBlocks.push(`--- ${f.path}${f.range} ---\n${f.content}\n---`);
+        }
+        userContent = `${fileBlocks.join("\n\n")}\n\n${prompt}`;
+      }
+
+      messages.push({ role: "user", content: userContent });
+    }
 
     const tools: GrokTool[] = [];
     if (web_search !== false) {
@@ -289,14 +314,19 @@ server.tool(
       tools.push({ type: "x_search" });
     }
 
-    const response = await callGrok({
+    const result = await callGrok({
       messages,
       model,
       tools: tools.length > 0 ? tools : undefined,
+      previousResponseId: previous_response_id,
     });
 
+    const text = result.responseId
+      ? `${result.text}\n\n---\nresponse_id: ${result.responseId}`
+      : result.text;
+
     return {
-      content: [{ type: "text" as const, text: response }],
+      content: [{ type: "text" as const, text }],
     };
   }
 );

@@ -1,6 +1,6 @@
 {
   "name": "@pkwadsy/grok-mcp",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "MCP server that wraps the xAI Grok API — delegate thinking, planning, and search to Grok",
   "type": "module",
   "main": "dist/index.js",
