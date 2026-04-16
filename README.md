@@ -31,22 +31,55 @@ Add to your project's `.mcp.json`:
 }
 ```
 
-## Tool: `ask_grok`
+## Tools
 
-Single tool with options for different use cases.
+### `ask_grok`
 
-### Parameters
+Ask Grok a question with optional file context, web search, and X/Twitter search.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `prompt` | string | yes | The question or task for Grok |
-| `files` | array | no | Files to include in context (path, optional start_line/end_line) |
+| `files` | string[] | no | Files to include in context (see file syntax below) |
+| `max_files` | number | no | Override max file count (default 50) |
+| `max_file_size` | number | no | Override max per-file size in KB (default 32) |
 | `system_prompt` | string | no | Custom system prompt |
 | `model` | string | no | Model to use (default: `grok-4.20-multi-agent`) |
 | `web_search` | boolean | no | Web search, enabled by default |
 | `x_search` | boolean | no | Enable X/Twitter search |
 
-### Available Models
+### `check_files`
+
+Dry-run file resolution. Validates all files and shows sizes without calling Grok. If `check_files` passes, `ask_grok` will too.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `files` | string[] | yes | Files to check (same syntax as `ask_grok`) |
+| `max_files` | number | no | Override max file count (default 50) |
+| `max_file_size` | number | no | Override max per-file size in KB (default 32) |
+
+### File syntax
+
+Files are passed as an array of strings with compact syntax:
+
+| Syntax | Description |
+|--------|-------------|
+| `"src/index.ts"` | Whole file |
+| `"src/index.ts:10-30"` | Lines 10 to 30 |
+| `"src/index.ts:10"` | Just line 10 |
+| `"src/**/*.ts"` | Glob pattern |
+| `"large-file.ts:force"` | Bypass per-file size limit |
+| `"large-file.ts:1-100:force"` | Combine line range with force |
+
+### Safety limits
+
+| Limit | Default | Override |
+|-------|---------|----------|
+| Files per call | 50 | `max_files` param |
+| Per-file size | 32 KB | `max_file_size` param or `:force` suffix |
+| Total context | 256 KB | Hard cap, not overridable |
+
+### Available models
 
 - `grok-4.20-multi-agent` — multi-agent mode, great for architecture and planning (default)
 - `grok-4.20-reasoning` — flagship reasoning
@@ -56,27 +89,26 @@ Single tool with options for different use cases.
 
 ### Examples
 
-**Ask a question:**
+**Ask with file context:**
 ```
-prompt: "What are the trade-offs between microservices and monoliths?"
-```
-
-**Deep architecture planning (multi-agent):**
-```
-prompt: "Design a system architecture for a real-time collaborative editor"
-model: "grok-4.20-multi-agent"
+prompt: "Review this code for bugs"
+files: ["src/index.ts", "src/utils.ts:20-50"]
 ```
 
 **Search the web:**
 ```
 prompt: "What happened in tech news today?"
-web_search: true
 ```
 
 **Search X/Twitter:**
 ```
 prompt: "What are people saying about the new React release?"
 x_search: true
+```
+
+**Check files before asking:**
+```
+files: ["src/**/*.ts"]
 ```
 
 ## License
